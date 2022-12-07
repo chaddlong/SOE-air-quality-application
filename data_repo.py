@@ -1,5 +1,18 @@
 import csv
 from datetime import datetime
+from pollutant_value import PollutantValue
+import re
+
+
+def switch(pollutant):
+    if pollutant == "NO2":
+        return 0
+    elif pollutant == "SO2":
+        return 1
+    elif pollutant == "PM10":
+        return 2
+    elif pollutant == "O3":
+        return 3
 
 
 class DataRepository:
@@ -22,8 +35,10 @@ class DataRepository:
     def getSensorData(self, sensor, timestamp):
         result = []
         for row in self.data:
-            if row[1] == sensor and row[0] < timestamp:
-                result.append(row)
+            sensor_number = int(re.match('(?<=Sensor)[0-9]+', row[1])[0])
+            timestamp_entry = datetime.strptime(row[0], '%Y-%m-%dT%H:%M:%S')
+            if sensor_number == sensor and timestamp_entry < timestamp:
+                result.append(PollutantValue(row[3], sensor_number, timestamp_entry, switch(row[2])))
         return result
 
 
