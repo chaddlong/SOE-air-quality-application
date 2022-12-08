@@ -3,6 +3,7 @@ from pollutant_value import PollutantValue
 import csv
 import math
 import numpy
+import traceback
 
 
 def distance(coord_1, coord_2):
@@ -18,8 +19,9 @@ def calculate_aqi(concentration, intervals):
     bp_low, bp_high = intervals[0]
     return ((aqi_high - aqi_low) / (bp_high - bp_low)) * (concentration - bp_low) + aqi_low
 
+
 def find_bound(average, bounds):
-    interval = ((-27, -27), (-27, -27))
+    interval = ((-28, -1), (-28, -1))
     for bound in bounds:
         aqi_low, aqi_high = bound[0]
         if aqi_low <= average <= aqi_high:
@@ -48,14 +50,14 @@ class DataHandler:
         self.sensor_coordinates = []
         self.max_distance = 1000
         with open('Sensors.csv') as sensor_file:
-            sensor_csv = csv.DictReader(sensor_file)
+            sensor_csv = csv.DictReader(sensor_file, delimiter=';')
             for sid in sensor_csv:
-                self.sensor_coordinates.append((0, (sid[1], sid[2])))
+                self.sensor_coordinates.append((sid["SensorID"], (float(sid["Latitude"]), float(sid["Longitude"]))))
 
     def get_air_quality(self, coord, time_stamp):
         lat, long = coord
         air_quality_list = []
-        for i in range(0, 3):
+        for i in range(0, 4):
             air_quality_list.append(self.calculate_mean_air_quality(i, time_stamp, (lat, long)))
 
         total_air_quality = max(air_quality_list)
@@ -70,61 +72,65 @@ class DataHandler:
             if distance(coord, coord2[1]) <= self.max_distance:
                 sensors_used.append(coord2[0])
         for i in sensors_used:
-            data.append(self.data_repo.getSensorData(i, timestamp))
-
-        if pollutant == 0:
-            relevant_values = []
-            for entry in data:
-                if entry.type == 0 and (timestamp - entry.timestamp).total_seconds() <= 3600:
-                    relevant_values.append(entry.value)
-            # used conversion factors assume 25 degrees celcius and 1 atm pressure
-            average = 1.88 * numpy.mean(relevant_values)
-            interval = find_bound(average, no2_bounds)
-            result = calculate_aqi(average, interval)
-        elif pollutant == 1:
-            relevant_values = []
-            relevant_values24 = []
-            for entry in data:
-                if entry.type == 1:
-                    if (timestamp - entry.timestamp).total_seconds() <= 3600:
+            for j in self.data_repo.getSensorData(i, timestamp):
+                data.append(j)
+        # temporary, for testing purposes
+        try:
+            if pollutant == 0:
+                relevant_values = []
+                for entry in data:
+                    if entry.type == 0 and (timestamp - entry.timestamp).total_seconds() <= 3600:
                         relevant_values.append(entry.value)
-                    if (timestamp - entry.timestamp).total_seconds() <= 86400:
-                        relevant_values24.append(entry.value)
-            average = 2.62 * numpy.mean(relevant_values)
-            average24 = 2.62 * numpy.mean(relevant_values24)
-            # the following emulates the decision tree of which values to use as outlined by the US EPA
-            if average < 305:
-                interval = find_bound(average, so2_1hrbounds)
+                # used conversion factors assume 25 degrees celcius and 1 atm pressure
+                average = 1.88 * numpy.mean(relevant_values)
+                interval = find_bound(average, no2_bounds)
                 result = calculate_aqi(average, interval)
-            elif average24 < 305:
-                result = calculate_aqi(average, (200, 200))
-            else:
-                interval = find_bound(average24, so2_24hrbounds)
-                result = calculate_aqi(average24, interval)
-        elif pollutant == 2:
-            relevant_values = []
-            for entry in data:
-                if entry.type == 2 and (timestamp - entry.timestamp).total_seconds() <= 86400:
-                    relevant_values.append(entry.value)
-            # required units already match data, so no conversion factor
-            average = numpy.mean(relevant_values)
-            interval = find_bound(average, pm10_bounds)
-            result = calculate_aqi(average, interval)
-        elif pollutant == 3:
-            relevant_values = []
-            relevant_values8 = []
-            for entry in data:
-                if entry.type == 3:
-                    if (timestamp - entry.timestamp).total_seconds() <= 3600:
-                        relevant_values.append(entry)
-                    if (timestamp - entry.timestamp).total_seconds() <= 28800:
-                        relevant_values8.append(entry)
-            average = numpy.mean(relevant_values) if numpy.mean(relevant_values) >= 0.125 else 0.0
-            average8 = numpy.mean(relevant_values8) if numpy.mean(relevant_values8) <= 0.200 else 0.0
-            interval = find_bound(average, o3_1hrbounds)
-            interval8 = find_bound(average8, o3_8hrbounds)
-            results = [calculate_aqi(average, interval), calculate_aqi(average8, interval8)]
-            result = max(results)
+            elif pollutant == 1:
+                relevant_values = []
+                relevant_values24 = []
+                for entry in data:
+                    if entry.type == 1:
+                        if (timestamp - entry.timestamp).total_seconds() <= 3600:
+                            relevant_values.append(entry.value)
+                        if (timestamp - entry.timestamp).total_seconds() <= 86400:
+                            relevant_values24.append(entry.value)
+                average = 2.62 * numpy.mean(relevant_values)
+                average24 = 2.62 * numpy.mean(relevant_values24)
+                # the following emulates the decision tree of which values to use as outlined by the US EPA
+                if average < 305:
+                    interval = find_bound(average, so2_1hrbounds)
+                    result = calculate_aqi(average, interval)
+                elif average24 < 305:
+                    result = calculate_aqi(average, (200, 200))
+                else:
+                    interval = find_bound(average24, so2_24hrbounds)
+                    result = calculate_aqi(average24, interval)
+            elif pollutant == 2:
+                relevant_values = []
+                for entry in data:
+                    if entry.type == 2 and (timestamp - entry.timestamp).total_seconds() <= 86400:
+                        relevant_values.append(entry.value)
+                # required units already match data, so no conversion factor
+                average = numpy.mean(relevant_values)
+                interval = find_bound(average, pm10_bounds)
+                result = calculate_aqi(average, interval)
+            elif pollutant == 3:
+                relevant_values = []
+                relevant_values8 = []
+                for entry in data:
+                    if entry.type == 3:
+                        if (timestamp - entry.timestamp).total_seconds() <= 3600:
+                            relevant_values.append(entry.value)
+                        if (timestamp - entry.timestamp).total_seconds() <= 28800:
+                            relevant_values8.append(entry.value)
+                average = numpy.mean(relevant_values) if numpy.mean(relevant_values) >= 0.125 else 0.0
+                average8 = numpy.mean(relevant_values8) if numpy.mean(relevant_values8) <= 0.200 else 0.0
+                interval = find_bound(average, o3_1hrbounds)
+                interval8 = find_bound(average8, o3_8hrbounds)
+                results = [calculate_aqi(average, interval), calculate_aqi(average8, interval8)]
+                result = max(results)
+        except:
+            traceback.print_exc()
         if result != -27:
             return result
         else:

@@ -34,11 +34,11 @@ class DataRepository:
 
     def getSensorData(self, sensor, timestamp):
         result = []
+        sensor = int(re.search('(?<=Sensor)[0-9]+', sensor)[0])
         for row in self.data:
-            sensor_number = int(re.match('(?<=Sensor)[0-9]+', row[1])[0])
-            timestamp_entry = datetime.strptime(row[0], '%Y-%m-%dT%H:%M:%S')
-            if sensor_number == sensor and timestamp_entry < timestamp:
-                result.append(PollutantValue(row[3], sensor_number, timestamp_entry, switch(row[2])))
+            sensor_number = int(re.search('(?<=Sensor)[0-9]+', row[1])[0])
+            if sensor_number == sensor and row[0] <= timestamp:
+                result.append(PollutantValue(float(row[3]), sensor_number, row[0], switch(row[2])))
         return result
 
 
