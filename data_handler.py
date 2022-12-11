@@ -76,14 +76,10 @@ class DataHandler:
                 so2_air_qualities.append(result[1][1])
                 pm10_air_qualities.append(result[1][2])
                 o3_air_qualities.append(result[1][3])
-            elif result[0] == -1:
-                sensor_error_count += 1
-            elif result[0] == -2:
-                timespan_error_count += 1
         if len(total_air_qualities) == 0:
-            if len(used_timestamps) == sensor_error_count:
+            if self.get_air_quality(coord, time_stamp_start)[0] == -1:
                 return -1, [0, 0, 0, 0]
-            elif len(used_timestamps) == timespan_error_count:
+            else:
                 return -2, [0, 0, 0, 0]
         else:
             return numpy.mean(total_air_qualities), [numpy.mean(no2_air_qualities), numpy.mean(so2_air_qualities),
