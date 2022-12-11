@@ -32,22 +32,27 @@ def find_bound(average, bounds):
 
 
 def calculate_mean_air_quality(pollutant, timestamp, data):
+    # Placeholder value to initialize the result variable for later usage
     result = -27
     try:
+        # When pollutant is NO2
         if pollutant == 0:
             relevant_values = []
             for entry in data:
+                # Data from the past hour is used for 1-hour average
                 if entry.type == 0 and (timestamp - entry.timestamp).total_seconds() <= 3600:
                     relevant_values.append(entry.value)
             # used conversion factors assume 25 degrees celcius and 1 atm pressure
             average = 1.88 * numpy.mean(relevant_values)
             interval = find_bound(average, no2_bounds)
             result = calculate_aqi(average, interval)
+        # When pollutant is SO2
         elif pollutant == 1:
             relevant_values = []
             relevant_values24 = []
             for entry in data:
                 if entry.type == 1:
+                    # Gets data values for 1-hour and 8-hour averages
                     if (timestamp - entry.timestamp).total_seconds() <= 3600:
                         relevant_values.append(entry.value)
                     if (timestamp - entry.timestamp).total_seconds() <= 86400:
@@ -63,6 +68,7 @@ def calculate_mean_air_quality(pollutant, timestamp, data):
             else:
                 interval = find_bound(average24, so2_24hrbounds)
                 result = calculate_aqi(average24, interval)
+        # When pollutant is PM10
         elif pollutant == 2:
             relevant_values = []
             for entry in data:
@@ -72,6 +78,7 @@ def calculate_mean_air_quality(pollutant, timestamp, data):
             average = numpy.mean(relevant_values)
             interval = find_bound(average, pm10_bounds)
             result = calculate_aqi(average, interval)
+        # When pollutant is O3
         elif pollutant == 3:
             relevant_values = []
             relevant_values8 = []
@@ -85,10 +92,12 @@ def calculate_mean_air_quality(pollutant, timestamp, data):
             average8 = numpy.mean(relevant_values8) if numpy.mean(relevant_values8) <= 0.200 else 0.0
             interval = find_bound(average, o3_1hrbounds)
             interval8 = find_bound(average8, o3_8hrbounds)
+            # Both 1-hour and 8-hour averages are found, the larger of the two being used
             results = [calculate_aqi(average, interval), calculate_aqi(average8, interval8)]
             result = max(results)
     except:
         traceback.print_exc()
+    # If the calculation worked, this should not be -27
     if result != -27:
         return result
     else:
@@ -96,6 +105,10 @@ def calculate_mean_air_quality(pollutant, timestamp, data):
 
 
 # AQI Calculation Values
+# Each tuple contains two tuples, the first containing the range of the pollutant value in its respective unit
+# (conversion is done later on), and the second containing the respective AQI values. Some bounds use averages
+# from multiple timeframes depending on the value. For instance, some ranges require a 1-hour average while
+# other ranges require an 8-hour average.
 o3_8hrbounds = [((0.0, 0.054), (0, 50)), ((0.055, 0.070), (51, 100)), ((0.071, 0.085), (101, 150)),
                 ((0.086, 0.105), (151, 200)), ((0.106, 0.200), (201, 250))]
 o3_1hrbounds = [((0.125, 0.164), (101, 150)), ((0.165, 0.204), (151, 200)),
@@ -121,52 +134,66 @@ class DataHandler:
                 self.sensor_coordinates.append((sid["SensorID"], (float(sid["Latitude"]), float(sid["Longitude"]))))
 
     def get_air_quality_timespan(self, coord, time_stamp_start, time_stamp_end):
+        # Creates an array to keep track of which timestamps are used to gather data from
         used_timestamps = []
+        # Creates arrays to hold the relevant values at each checked timestamp, which are averaged later
         total_air_qualities = []
         no2_air_qualities = []
         so2_air_qualities = []
         pm10_air_qualities = []
         o3_air_qualities = []
-        sensor_error_count = 0
-        timespan_error_count = 0
+        # Only uses data points whose timestamps fall within the specified range
         for value in self.data_repo.data:
             if time_stamp_start <= value[0] <= time_stamp_end:
                 used_timestamps.append(value[0])
         for timestamp in used_timestamps:
             result = self.get_air_quality(coord, timestamp)
+            # Makes sure there are no errors with individual air qualities to prevent array access errors
             if result[0] != -1 and result[0] != -2:
                 total_air_qualities.append(result[0])
                 no2_air_qualities.append(result[1][0])
                 so2_air_qualities.append(result[1][1])
                 pm10_air_qualities.append(result[1][2])
                 o3_air_qualities.append(result[1][3])
+        # This indicates that something went horribly wrong
         if len(total_air_qualities) == 0:
+            # Sensor location doesn't change, so if a single air quality
+            # returns a no-sensor error, the same is true for all air qualities at the given coordinates,
+            # regardless of timespan
             if self.get_air_quality(coord, time_stamp_start)[0] == -1:
                 return -1, [0, 0, 0, 0]
             else:
+                # If there are sensors within range, the error must be a lack of data in the timespan
                 return -2, [0, 0, 0, 0]
         else:
             return numpy.mean(total_air_qualities), [numpy.mean(no2_air_qualities), numpy.mean(so2_air_qualities),
                                                      numpy.mean(pm10_air_qualities), numpy.mean(o3_air_qualities)]
 
     def get_air_quality(self, coord, time_stamp):
+        # Used to hold air qualities for each pollutant
         air_quality_list = []
         sensors_used = []
+        # Holds PollutantValue instances for use
         data = []
+        # Finds sensors within range
         for coord2 in self.sensor_coordinates:
             if distance(coord, coord2[1]) <= self.max_distance:
                 sensors_used.append(coord2[0])
+        # If there aren't sensors within range, return a no-sensor error
         if len(sensors_used) == 0:
             return -1, air_quality_list
+        # Get data
         for i in sensors_used:
             for j in self.data_repo.getSensorData(i, time_stamp):
                 data.append(j)
         if len(data) == 0:
             # -2 is error code for no valid data within given time constraints
             return -2, air_quality_list
+        # Calculates the air quality for each pollutant
         for i in range(0, 4):
             air_quality_list.append(calculate_mean_air_quality(i, time_stamp, data))
 
+        # Total air quality is the maximum pollutant air quality value
         total_air_quality = max(air_quality_list)
 
         return total_air_quality, air_quality_list
