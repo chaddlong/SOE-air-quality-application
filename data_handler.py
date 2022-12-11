@@ -1,3 +1,5 @@
+import datetime
+
 from data_repo import DataRepository
 from pollutant_value import PollutantValue
 import csv
@@ -54,27 +56,63 @@ class DataHandler:
             for sid in sensor_csv:
                 self.sensor_coordinates.append((sid["SensorID"], (float(sid["Latitude"]), float(sid["Longitude"]))))
 
+    def get_air_quality_timespan(self, coord, time_stamp_start, time_stamp_end):
+        used_timestamps = []
+        total_air_qualities = []
+        no2_air_qualities = []
+        so2_air_qualities = []
+        pm10_air_qualities = []
+        o3_air_qualities = []
+        sensor_error_count = 0
+        timespan_error_count = 0
+        for value in self.data_repo.data:
+            if time_stamp_start <= value[0] <= time_stamp_end:
+                used_timestamps.append(value[0])
+        for timestamp in used_timestamps:
+            result = self.get_air_quality(coord, timestamp)
+            if result[0] != -1 and result[0] != -2:
+                total_air_qualities.append(result[0])
+                no2_air_qualities.append(result[1][0])
+                so2_air_qualities.append(result[1][1])
+                pm10_air_qualities.append(result[1][2])
+                o3_air_qualities.append(result[1][3])
+            elif result[0] == -1:
+                sensor_error_count += 1
+            elif result[0] == -2:
+                timespan_error_count += 1
+        if len(total_air_qualities) == 0:
+            if len(used_timestamps) == sensor_error_count:
+                return -1, [0, 0, 0, 0]
+            elif len(used_timestamps) == timespan_error_count:
+                return -2, [0, 0, 0, 0]
+        else:
+            return numpy.mean(total_air_qualities), [numpy.mean(no2_air_qualities), numpy.mean(so2_air_qualities),
+                                                     numpy.mean(pm10_air_qualities), numpy.mean(o3_air_qualities)]
+
     def get_air_quality(self, coord, time_stamp):
-        lat, long = coord
         air_quality_list = []
+        sensors_used = []
+        data = []
+        for coord2 in self.sensor_coordinates:
+            if distance(coord, coord2[1]) <= self.max_distance:
+                sensors_used.append(coord2[0])
+        if len(sensors_used) == 0:
+            return -1, air_quality_list
+        for i in sensors_used:
+            for j in self.data_repo.getSensorData(i, time_stamp):
+                data.append(j)
+        if len(data) == 0:
+            # -2 is error code for no valid data within given time constraints
+            return -2, air_quality_list
         for i in range(0, 4):
-            air_quality_list.append(self.calculate_mean_air_quality(i, time_stamp, (lat, long)))
+            air_quality_list.append(self.calculate_mean_air_quality(i, time_stamp, data))
 
         total_air_quality = max(air_quality_list)
 
         return total_air_quality, air_quality_list
 
-    def calculate_mean_air_quality(self, pollutant, timestamp, coord):
-        sensors_used = []
-        data = []
+    def calculate_mean_air_quality(self, pollutant, timestamp, data):
         result = -27
-        for coord2 in self.sensor_coordinates:
-            if distance(coord, coord2[1]) <= self.max_distance:
-                sensors_used.append(coord2[0])
-        for i in sensors_used:
-            for j in self.data_repo.getSensorData(i, timestamp):
-                data.append(j)
-        # temporary, for testing purposes
         try:
             if pollutant == 0:
                 relevant_values = []
@@ -101,7 +139,7 @@ class DataHandler:
                     interval = find_bound(average, so2_1hrbounds)
                     result = calculate_aqi(average, interval)
                 elif average24 < 305:
-                    result = calculate_aqi(average, (200, 200))
+                    result = calculate_aqi(average, ((303, 304), (200, 200)))
                 else:
                     interval = find_bound(average24, so2_24hrbounds)
                     result = calculate_aqi(average24, interval)
