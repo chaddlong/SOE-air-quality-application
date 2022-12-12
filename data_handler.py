@@ -138,6 +138,9 @@ class DataHandler:
                 self.sensor_coordinates.append(
                     (sid["SensorID"], (float(sid["Latitude"]), float(sid["Longitude"]))))
 
+    def set_data_repo(self, csv_path):
+        self.data_repo = DataRepository(csv_path)
+
     def get_air_quality_timespan(self, coord, time_stamp_start, time_stamp_end):
         # Creates an array to keep track of which timestamps are used to gather data from
         used_timestamps = []
@@ -204,7 +207,7 @@ class DataHandler:
 
         return total_air_quality, air_quality_list
 
-    def get_similar_sensors(self, time_stamp_start, time_stamp_end):
+    def get_similar_sensors(self, time_stamp_start, time_stamp_end, value_diff):
         sensor_values = {"Sensor0": [], "Sensor1": [], "Sensor2": [],
                          "Sensor3": [], "Sensor4": [], "Sensor5": [], "Sensor6": [], "Sensor7": [], "Sensor8": [], "Sensor9": []}
         for value in self.data_repo.data:
@@ -220,7 +223,8 @@ class DataHandler:
                 for target_sensor in sensor_values:
                     for target_values in sensor_values[target_sensor]:
                         if source_sensor != target_sensor and source_values[1] == target_values[1]:
-                            if abs(float(source_values[2])-float(target_values[2])) < 1 and \
+                            if abs(float(source_values[2])-float(target_values[2])) < value_diff and \
                                     target_sensor not in similar_sensors[source_sensor]:
-                                similar_sensors[source_sensor].append(target_sensor)
+                                similar_sensors[source_sensor].append(
+                                    target_sensor)
         return similar_sensors

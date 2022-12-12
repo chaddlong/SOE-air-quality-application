@@ -29,7 +29,6 @@ class DataRepository:
         for row in self.data:
             temp = row[0].split(".")
             row[0] = datetime.strptime(temp[0], '%Y-%m-%dT%H:%M:%S')
-        print(self.data)
         print("Raw sensor data saved to memory.\n")
 
     def getSensorData(self, sensor, timestamp):
@@ -38,13 +37,6 @@ class DataRepository:
         for row in self.data:
             sensor_number = int(re.search('(?<=Sensor)[0-9]+', row[1])[0])
             if sensor_number == sensor and row[0] <= timestamp:
-                result.append(PollutantValue(float(row[3]), sensor_number, row[0], switch(row[2])))
+                result.append(PollutantValue(
+                    float(row[3]), sensor_number, row[0], switch(row[2])))
         return result
-
-
-if __name__ == "__main__":
-    dataRepo = DataRepository("test_data.csv")
-    timestamp_input = datetime(
-        year=2017, month=2, day=5, hour=13, minute=14, second=31)
-    res = dataRepo.getSensorData("Sensor4", timestamp_input)
-    print(res)

@@ -61,12 +61,12 @@ def get_timestamp(option):
         return query_timestamp_start, query_timestamp_end
 
 
-def get_single_air_quality():
+def get_single_air_quality(data_handler):
     lat, long = get_coordinates()
     coordinates = (lat, long)
     query_timestamp = get_timestamp(False)
 
-    data_handler = DataHandler("test_data.csv")
+    # data_handler = DataHandler("test_data.csv")
     air_qualities = data_handler.get_air_quality(coordinates, query_timestamp)
     print("Your coordinates: ", coordinates, "\n")
     print("Your query timestamp: ", query_timestamp, "\n\n")
@@ -82,13 +82,14 @@ def get_single_air_quality():
         print("Total Air Quality: ", round(air_qualities[0]), "\n\n")
 
 
-def get_average_air_quality():
+def get_average_air_quality(data_handler):
     lat, long = get_coordinates()
     coordinates = (lat, long)
     query_timestamp_start, query_timestamp_end = get_timestamp(True)
 
-    data_handler = DataHandler("test_data.csv")
-    air_qualities = data_handler.get_air_quality_timespan(coordinates, query_timestamp_start, query_timestamp_end)
+    # data_handler = DataHandler("test_data.csv")
+    air_qualities = data_handler.get_air_quality_timespan(
+        coordinates, query_timestamp_start, query_timestamp_end)
     print("Your coordinates: ", coordinates, "\n")
     print("Your starting time: ", query_timestamp_start, "\n")
     print("Your ending time: ", query_timestamp_end, "\n")
@@ -104,13 +105,14 @@ def get_average_air_quality():
         print("Total Air Quality: ", round(air_qualities[0]), "\n\n")
 
 
-def get_similar_sensors():
+def get_similar_sensors(data_handler):
     query_timestamp_start, query_timestamp_end = get_timestamp(True)
     valid_difference = False
     value_difference = 0
     while not valid_difference:
         try:
-            value_difference = float(input("Enter the value difference to be considered \"Similar\" (0, infinity): "))
+            value_difference = float(
+                input("Enter the value difference to be considered \"Similar\" (0, infinity): "))
             if value_difference <= 0:
                 print("Invalid value difference!\n")
             else:
@@ -118,8 +120,11 @@ def get_similar_sensors():
         except ValueError:
             print("Invalid value difference!\n")
 
-    data_handler = DataHandler("test_data.csv")
-    similar_sensors = data_handler.get_similar_sensors(query_timestamp_start, query_timestamp_end, value_difference)
+    # data_handler = DataHandler("test_data.csv")
+    similar_sensors = data_handler.get_similar_sensors(
+        query_timestamp_start, query_timestamp_end, value_difference)
+    for sensor, values in similar_sensors.items():
+        print(sensor, " has similar values to: ", values)
 
 
 if __name__ == "__main__":
@@ -131,20 +136,25 @@ if __name__ == "__main__":
     print("1. Retrieve aqi at given coordinates at given time")
     print("2. Retrieve average aqi at given coordinates in given timespan")
     print("3. Find sensors with similar pollutant values in a given timespan")
+    print("4. Set data file")
     validMode = False
     mode = 0
+    data_handler = DataHandler("test_data.csv")
     while not validMode:
         try:
-            mode = int(input("Select a mode (1-3): "))
-            if 1 <= mode <= 3:
+            mode = int(input("Select a mode (1-4): "))
+            if 1 <= mode <= 4:
                 validMode = True
             else:
                 print("Invalid mode!\n")
         except ValueError:
             print("Invalid mode!\n")
     if mode == 1:
-        get_single_air_quality()
+        get_single_air_quality(data_handler)
     elif mode == 2:
-        get_average_air_quality()
+        get_average_air_quality(data_handler)
     elif mode == 3:
-        get_similar_sensors()
+        get_similar_sensors(data_handler)
+    elif mode == 4:
+        csv_path = input("File path: ")
+        data_handler.set_data_repo(csv_path)
