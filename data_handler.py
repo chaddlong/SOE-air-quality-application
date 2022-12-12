@@ -88,12 +88,15 @@ def calculate_mean_air_quality(pollutant, timestamp, data):
                         relevant_values.append(entry.value)
                     if (timestamp - entry.timestamp).total_seconds() <= 28800:
                         relevant_values8.append(entry.value)
-            average = numpy.mean(relevant_values) if numpy.mean(relevant_values) >= 0.125 else 0.0
-            average8 = numpy.mean(relevant_values8) if numpy.mean(relevant_values8) <= 0.200 else 0.0
+            average = numpy.mean(relevant_values) if numpy.mean(
+                relevant_values) >= 0.125 else 0.0
+            average8 = numpy.mean(relevant_values8) if numpy.mean(
+                relevant_values8) <= 0.200 else 0.0
             interval = find_bound(average, o3_1hrbounds)
             interval8 = find_bound(average8, o3_8hrbounds)
             # Both 1-hour and 8-hour averages are found, the larger of the two being used
-            results = [calculate_aqi(average, interval), calculate_aqi(average8, interval8)]
+            results = [calculate_aqi(average, interval),
+                       calculate_aqi(average8, interval8)]
             result = max(results)
     except:
         traceback.print_exc()
@@ -115,10 +118,13 @@ o3_1hrbounds = [((0.125, 0.164), (101, 150)), ((0.165, 0.204), (151, 200)),
                 ((0.205, 0.404), (201, 300)), ((0.405, 0.504), (301, 400)), ((0.505, 0.604), (401, 500))]
 pm10_bounds = [((0, 54), (0, 50)), ((55, 154), (51, 100)), ((155, 254), (101, 150)),
                ((255, 354), (151, 200)), ((355, 424), (201, 300)), ((425, 504), (301, 400)), ((505, 604), (401, 500))]
-so2_1hrbounds = [((0, 35), (0, 50)), ((36, 75), (51, 100)), ((76, 185), (101, 150)), ((186, 304), (151, 200))]
-so2_24hrbounds = [((305, 604), (201, 300)), ((605, 804), (301, 400)), ((805, 1004), (401, 500))]
+so2_1hrbounds = [((0, 35), (0, 50)), ((36, 75), (51, 100)),
+                 ((76, 185), (101, 150)), ((186, 304), (151, 200))]
+so2_24hrbounds = [((305, 604), (201, 300)), ((605, 804),
+                                             (301, 400)), ((805, 1004), (401, 500))]
 no2_bounds = [((0, 53), (0, 50)), ((54, 100), (51, 100)), ((101, 360), (101, 150)),
-              ((361, 649), (151, 200)), ((650, 1249), (201, 300)), ((1250, 1649), (301, 400)),
+              ((361, 649), (151, 200)), ((650, 1249),
+                                         (201, 300)), ((1250, 1649), (301, 400)),
               ((1650, 2049), (401, 500))]
 
 
@@ -131,7 +137,8 @@ class DataHandler:
         with open('Sensors.csv') as sensor_file:
             sensor_csv = csv.DictReader(sensor_file, delimiter=';')
             for sid in sensor_csv:
-                self.sensor_coordinates.append((sid["SensorID"], (float(sid["Latitude"]), float(sid["Longitude"]))))
+                self.sensor_coordinates.append(
+                    (sid["SensorID"], (float(sid["Latitude"]), float(sid["Longitude"]))))
 
     def get_air_quality_timespan(self, coord, time_stamp_start, time_stamp_end):
         # Creates an array to keep track of which timestamps are used to gather data from
@@ -191,9 +198,28 @@ class DataHandler:
             return -2, air_quality_list
         # Calculates the air quality for each pollutant
         for i in range(0, 4):
-            air_quality_list.append(calculate_mean_air_quality(i, time_stamp, data))
+            air_quality_list.append(
+                calculate_mean_air_quality(i, time_stamp, data))
 
         # Total air quality is the maximum pollutant air quality value
         total_air_quality = max(air_quality_list)
 
         return total_air_quality, air_quality_list
+
+    def get_similar_sensors(self, time_stamp_start, time_stamp_end):
+        sensor_values = {"Sensor0": [], "Sensor1": [], "Sensor2": [],
+                         "Sensor3": [], "Sensor4": [], "Sensor5": [], "Sensor6": [], "Sensor7": [], "Sensor8": [], "Sensor9": []}
+        for value in self.data_repo.data:
+            if time_stamp_start <= value[0] <= time_stamp_end:
+                # [datetime.datetime(2017, 1, 1, 3, 31, 22), 'Sensor5', 'PM10', '26.0549070206503', '']
+                sensor_values[value[1]].append((value[0], value[2], value[3]))
+
+        similar_sensors = {}
+        print(sensor_values)
+        for source_sensor, source_values in sensor_values:
+            similar_sensors[source_sensor] = []
+            for target_sensor, target_values in sensor_values:
+                if source_sensor != target_sensor and source_values[2] == target_values[2]:
+                    if abs(source_values[3]-target_values[3]) < 2:
+                        similar_sensors[source_sensor].append(target_sensor)
+        return similar_sensors
