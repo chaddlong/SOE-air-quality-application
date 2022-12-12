@@ -1,5 +1,3 @@
-import datetime
-
 from data_repo import DataRepository
 from pollutant_value import PollutantValue
 import csv
@@ -215,11 +213,14 @@ class DataHandler:
                 sensor_values[value[1]].append((value[0], value[2], value[3]))
 
         similar_sensors = {}
-        print(sensor_values)
-        for source_sensor, source_values in sensor_values:
+        # print(sensor_values)
+        for source_sensor in sensor_values:
             similar_sensors[source_sensor] = []
-            for target_sensor, target_values in sensor_values:
-                if source_sensor != target_sensor and source_values[2] == target_values[2]:
-                    if abs(source_values[3]-target_values[3]) < 2:
-                        similar_sensors[source_sensor].append(target_sensor)
+            for source_values in sensor_values[source_sensor]:
+                for target_sensor in sensor_values:
+                    for target_values in sensor_values[target_sensor]:
+                        if source_sensor != target_sensor and source_values[1] == target_values[1]:
+                            if abs(float(source_values[2])-float(target_values[2])) < 1 and \
+                                    target_sensor not in similar_sensors[source_sensor]:
+                                similar_sensors[source_sensor].append(target_sensor)
         return similar_sensors
